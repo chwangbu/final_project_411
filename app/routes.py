@@ -2,6 +2,10 @@ from flask import Blueprint, request, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
 from app.models import User
+from app.models import favorites
+from app.weather_api import get_current_weather, get_forecast
+import time
+from app.weather_api import get_historical_weather
 
 bp = Blueprint("main", __name__)
 
@@ -16,16 +20,16 @@ def create_account():
     password = data.get("password")
 
     if not username or not password:
-        return jsonify({"error": "Missing username or password"}), 400
+        return jsonify({"error": "missing username or wrong password"}), 400
     
     if User.query.filter_by(username=username).first():
-        return jsonify({"error": "Username already exists"}), 409
+        return jsonify({"error": "ssername already taken"}), 409
     
     user = User(username=username)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
-    return jsonify({"message": "Account created successfully"}), 201
+    return jsonify({"message": "success - account created"}), 201
 
 @bp.route("/login", methods=["POST"])
 def login():
@@ -36,25 +40,88 @@ def login():
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
         session["user_id"] = user.id
-        return jsonify({"message": "Login successful"})
-    return jsonify({"error": "Invalid credentials"}), 401
+        return jsonify({"message": "logged in"})
+    return jsonify({"error": "wrong username and password combination "}), 401
 
 @bp.route("/logout", methods=["POST"])
 def logout():
     session.pop("user_id", None)
-    return jsonify({"message": "Logged out"})
+    return jsonify({"message": "logged out"})
 
 @bp.route("/update-password", methods=["PUT"])
 def update_password():
     if "user_id" not in session:
-        return jsonify({"error": "Authentication required"}), 401
+        return jsonify({"error": "please authenticate yourself"}), 401
 
     data = request.json
     new_password = data.get("new_password")
     if not new_password:
-        return jsonify({"error": "Missing new password"}), 400
+        return jsonify({"error": "not new password"}), 400
 
     user = User.query.get(session["user_id"])
     user.set_password(new_password)
     db.session.commit()
-    return jsonify({"message": "Password updated successfully"})
+    return jsonify({"message": "password updated"})
+
+@bp.route("/add-favorite", methods=["POST"])
+def add_favorite():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    data = request.json
+    location = data.get("location")
+    if not location:
+        return jsonify({"error": "no location found"}), 400
+
+    favorites.add_favorite(session["user_id"], location)
+    return jsonify({"message": "favorite location added"}), 201
+
+
+@bp.route("/favorites", methods=["GET"])
+def list_favorites():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    favs = favorites.get_favorites(session["user_id"])
+    return jsonify({"favorites": favs})
+
+
+@bp.route("/favorites/current", methods=["GET"])
+def current_weather_for_all_favorites():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    favs = favorites.get_favorites(session["user_id"])
+    results = {loc: get_current_weather(loc) for loc in favs}
+    return jsonify(results)
+
+@bp.route("/favorites/forecast", methods=["GET"])
+def forecast_for_favorites():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    favs = favorites.get_favorites(session["user_id"])
+    results = {loc: get_forecast(loc) for loc in favs}
+    return jsonify(results)
+
+@bp.route("/favorites/historical", methods=["GET"])
+def historical_weather():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    city = request.args.get("city")
+
+    if not city:
+        return jsonify({"error": "provide a valid city"}), 400
+
+    current_data = get_current_weather(city)
+    coord = current_data.get("coord")
+    if not coord:
+        return jsonify({"error": "could not get coordinates"}), 400
+
+    lat = coord["lat"]
+    lon = coord["lon"]
+    timestamp = int(time.time())
+
+    history = get_historical_weather(lat, lon, timestamp)
+    return jsonify({city: history})
