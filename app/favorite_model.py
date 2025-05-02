@@ -48,3 +48,15 @@ class FavoriteLocationModel:
         lat = coord_data["lat"]
         lon = coord_data["lon"]
         return get_historical_weather(lat, lon, timestamp)
+    
+    def rename_favorite(self, user_id: int, old_name: str, new_name: str) -> None:
+        logger.info(f"Renaming favorite - '{old_name}' ")
+        if user_id not in self.user_favorites:
+            raise ValueError("no favorites recorded")
+        favorites = self.user_favorites[user_id]
+        if old_name not in favorites:
+            raise ValueError(f"not a favorite")
+        if new_name in favorites:
+            raise ValueError(f"already a favorite")
+        index = favorites.index(old_name)
+        favorites[index] = new_name
