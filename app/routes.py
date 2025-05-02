@@ -23,7 +23,7 @@ def create_account():
         return jsonify({"error": "missing username or wrong password"}), 400
     
     if User.query.filter_by(username=username).first():
-        return jsonify({"error": "ssername already taken"}), 409
+        return jsonify({"error": "username already taken"}), 409
     
     user = User(username=username)
     user.set_password(password)
@@ -72,9 +72,11 @@ def add_favorite():
     location = data.get("location")
     if not location:
         return jsonify({"error": "no location found"}), 400
-
-    favorites.add_favorite(session["user_id"], location)
-    return jsonify({"message": "favorite location added"}), 201
+    try:
+        favorites.add_favorite(session["user_id"], location)
+        return jsonify({"message": "favorite location added"}), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
 
 
 @bp.route("/favorites", methods=["GET"])
@@ -91,37 +93,34 @@ def current_weather_for_all_favorites():
     if "user_id" not in session:
         return jsonify({"error": "please authenticate yourself"}), 401
 
-    favs = favorites.get_favorites(session["user_id"])
-    results = {loc: get_current_weather(loc) for loc in favs}
-    return jsonify(results)
+    try:
+        results = favorites.get_weather_for_all(session["user_id"])
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @bp.route("/favorites/forecast", methods=["GET"])
 def forecast_for_favorites():
     if "user_id" not in session:
         return jsonify({"error": "please authenticate yourself"}), 401
-
-    favs = favorites.get_favorites(session["user_id"])
-    results = {loc: get_forecast(loc) for loc in favs}
-    return jsonify(results)
+    try:
+        results = favorites.get_forecast_for_all(session["user_id"])
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @bp.route("/favorites/historical", methods=["GET"])
 def historical_weather():
     if "user_id" not in session:
         return jsonify({"error": "please authenticate yourself"}), 401
-
     city = request.args.get("city")
 
     if not city:
         return jsonify({"error": "provide a valid city"}), 400
-
-    current_data = get_current_weather(city)
-    coord = current_data.get("coord")
-    if not coord:
-        return jsonify({"error": "could not get coordinates"}), 400
-
-    lat = coord["lat"]
-    lon = coord["lon"]
-    timestamp = int(time.time())
-
-    history = get_historical_weather(lat, lon, timestamp)
-    return jsonify({city: history})
+    try:
+        result = favorites.get_historical_for_city(city)
+        return jsonify({city: result})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
