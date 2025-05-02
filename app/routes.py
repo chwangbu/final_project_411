@@ -4,9 +4,8 @@ from app import db
 from app.models import User
 from app.models import favorites
 from app.weather_api import get_current_weather, get_forecast
-import time
 from app.weather_api import get_historical_weather
-from datetime import datetime
+
 
 bp = Blueprint("main", __name__)
 
@@ -138,3 +137,21 @@ def delete_account():
     favorites.user_favorites.pop(user.id, None)
     session.clear()
     return jsonify({"message": "account deleted"})
+
+@bp.route("/rename-favorite", methods=["PUT"])
+def rename_favorite():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    data = request.json
+    old_name = data.get("old_name")
+    new_name = data.get("new_name")
+
+    if not old_name or not new_name:
+        return jsonify({"error": "Missing old_name or new_name"}), 400
+
+    try:
+        favorites.rename_favorite(session["user_id"], old_name, new_name)
+        return jsonify({"message": f"Renamed '{old_name}' to '{new_name}'"}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
