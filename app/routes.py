@@ -6,6 +6,7 @@ from app.models import favorites
 from app.weather_api import get_current_weather, get_forecast
 import time
 from app.weather_api import get_historical_weather
+from datetime import datetime
 
 bp = Blueprint("main", __name__)
 
@@ -124,3 +125,16 @@ def historical_weather():
         return jsonify({"error": str(ve)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@bp.route("/delete-account", methods=["DELETE"])
+def delete_account():
+    if "user_id" not in session:
+        return jsonify({"error": "please authenticate yourself"}), 401
+
+    user = User.query.get(session["user_id"])
+    db.session.delete(user)
+    db.session.commit()
+
+    favorites.user_favorites.pop(user.id, None)
+    session.clear()
+    return jsonify({"message": "account deleted"})
