@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask import session
 from dotenv import load_dotenv
 import os
+from datetime import timedelta
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "fallback-secret-key")
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.permanent_session_lifetime = timedelta(minutes=15) #15 min session timeout
 
     db.init_app(app)
 

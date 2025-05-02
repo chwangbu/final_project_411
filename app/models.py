@@ -13,18 +13,3 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-    
-class Favorite:
-    def __init__(self):
-        self.favorites_by_user = {}
-
-    def add_favorite(self, user_id, location):
-        if user_id not in self.favorites_by_user:
-            self.favorites_by_user[user_id] = []
-        if location not in self.favorites_by_user[user_id]:
-            self.favorites_by_user[user_id].append(location)
-
-    def get_favorites(self, user_id):
-        return self.favorites_by_user.get(user_id, [])
-    
-favorites = Favorite()
